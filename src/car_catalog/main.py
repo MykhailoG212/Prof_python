@@ -27,6 +27,8 @@ from car_catalog.services import (
     find_lowest_mileage,
     find_most_expensive,
 )
+from car_catalog.streaming.benchmark import run_benchmark as run_streaming_benchmark
+from car_catalog.streaming.demo import run_demo as run_lab3_demo
 
 
 def get_demo_cars() -> list[Car]:
@@ -63,6 +65,8 @@ def print_menu() -> None:
     print("8. Вийти")
     print("9. Демонстрація можливостей ЛР2")
     print("10. Benchmark пошуку list vs dict")
+    print("11. Демонстрація потокової обробки ЛР3")
+    print("12. Benchmark eager vs lazy для 100 000 записів")
 
 
 def _read_non_empty(prompt: str) -> str:
@@ -226,6 +230,12 @@ def run_menu(catalog: list[Car]) -> None:
         elif choice == "10":
             run_benchmark()
             history.append("Виконано benchmark list vs dict")
+        elif choice == "11":
+            run_lab3_demo()
+            history.append("Виконано потокову демонстрацію ЛР3")
+        elif choice == "12":
+            run_streaming_benchmark()
+            history.append("Виконано benchmark eager vs lazy")
         else:
             print("\nНевідома команда. Спробуйте ще раз.")
 

@@ -38,3 +38,19 @@ def test_menu_adds_car_to_catalog(monkeypatch: pytest.MonkeyPatch, capsys: pytes
     assert len(catalog) == 5
     assert catalog[-1] == Car("Toyota", "Corolla", 2019, 18000.0, 10000)
     assert "Автомобіль додано до каталогу." in capsys.readouterr().out
+
+
+def test_menu_runs_lab3_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+    answers = iter(["11", "8"])
+    called = False
+
+    def run_demo() -> None:
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+    monkeypatch.setattr("car_catalog.main.run_lab3_demo", run_demo)
+
+    run_menu([])
+
+    assert called

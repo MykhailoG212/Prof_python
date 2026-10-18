@@ -1,0 +1,8 @@
+id,brand,model,year,price,mileage
+1,Tesla,Model Y,2023,50000,12000
+2,Toyota,Camry,2020,25000,45000
+3,Honda,Civic,2021,22000,30000
+4,Toyota,Corolla,2019,18000,60000
+5,BMW,M3,2022,72000,24000
+invalid,Unknown,Model,2020,not-a-price,100
+6,Porsche,911 Carrera,2023,132000,9200
