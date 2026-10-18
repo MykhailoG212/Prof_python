@@ -1,6 +1,25 @@
 import math
+from collections import deque
 
+from car_catalog.analytics import (
+    calculate_total_and_average_price,
+    calculate_variadic_average,
+    create_car_record,
+    create_min_year_filter,
+    create_price_range_filter,
+    filter_cars,
+    find_most_expensive_car,
+    sort_cars_by_price,
+)
+from car_catalog.benchmark import run_benchmark
 from car_catalog.models import Car
+from car_catalog.processors import (
+    build_cars_by_id_index,
+    count_cars_by_brand,
+    extract_cars_brief_tuples,
+    get_unique_brands,
+    group_cars_by_brand,
+)
 from car_catalog.services import (
     calculate_average_price,
     filter_by_year,
@@ -42,6 +61,8 @@ def print_menu() -> None:
     print("6. Розрахувати середню ціну")
     print("7. Додати автомобіль")
     print("8. Вийти")
+    print("9. Демонстрація можливостей ЛР2")
+    print("10. Benchmark пошуку list vs dict")
 
 
 def _read_non_empty(prompt: str) -> str:
@@ -87,18 +108,79 @@ def create_car_from_input() -> Car:
     return Car(brand=brand, model=model, year=year, price=price, mileage=mileage)
 
 
+def run_lab2_demo(catalog: list[Car], history: deque[str]) -> None:
+    unique_brands = get_unique_brands(catalog)
+    print(f"\n[set comprehension] Унікальні марки: {unique_brands}")
+
+    counts = count_cars_by_brand(catalog)
+    print(f"[Counter] Кількість авто за марками: {dict(counts)}")
+
+    grouped = group_cars_by_brand(catalog)
+    print(f"[defaultdict] Кількість груп за марками: {len(grouped)}")
+
+    car_index = build_cars_by_id_index(catalog)
+    print(f"[dict comprehension] Автомобіль з ID 1: {car_index.get(1)}")
+
+    brief_records = extract_cars_brief_tuples(catalog)
+    print(f"[list comprehension + tuple] Перші записи: {brief_records[:3]}")
+
+    price_filter = create_price_range_filter(20_000.0, 75_000.0)
+    filtered_cars = filter_cars(catalog, price_filter)
+    print(
+        "[closure + higher-order filter] Авто за ціною $20,000-$75,000: "
+        f"{[car.full_name for car in filtered_cars]}"
+    )
+
+    recent_cars = filter_cars(catalog, create_min_year_filter(2021))
+    print(
+        "[closure filter] Авто від 2021 року: "
+        f"{[car.full_name for car in recent_cars]}"
+    )
+
+    sorted_cars = sort_cars_by_price(catalog, descending=True)
+    print(
+        "[lambda sort] Найдорожчі авто: "
+        f"{[car.full_name for car in sorted_cars[:3]]}"
+    )
+    print(
+        "[*args] Середня ціна: "
+        f"${calculate_variadic_average(*(car.price for car in catalog)):,.2f}"
+    )
+
+    created_car = create_car_record(
+        brand="Mercedes-Benz",
+        model="AMG GT",
+        year=2022,
+        price=115_000.0,
+        mileage=8_000,
+    )
+    print(f"[**kwargs] Створено запис: {created_car.full_name}")
+
+    total, average = calculate_total_and_average_price(catalog)
+    print(f"[generator aggregation] Загальна ціна: ${total:,.2f}; середня: ${average:,.2f}")
+    most_expensive = find_most_expensive_car(catalog)
+    if most_expensive is not None:
+        print(f"[lambda aggregation] Найдорожчий автомобіль: {most_expensive.full_name}")
+
+    history.append("Виконано демонстрацію ЛР2")
+    print(f"[deque] Останні операції: {list(history)}")
+
+
 def run_menu(catalog: list[Car]) -> None:
+    history: deque[str] = deque(maxlen=3)
     while True:
         print_menu()
         choice = input("Оберіть дію: ").strip()
 
         if choice == "1":
             print_cars(catalog)
+            history.append("Переглянуто каталог")
 
         elif choice == "2":
             make = input("Введіть марку для пошуку: ").strip()
             results = find_by_brand(catalog, make)
             print_cars(results)
+            history.append(f"Пошук марки: {make}")
 
         elif choice == "3":
             raw_year = input("Введіть рік: ").strip()
@@ -106,6 +188,7 @@ def run_menu(catalog: list[Car]) -> None:
                 year = int(raw_year)
                 results = filter_by_year(catalog, year)
                 print_cars(results)
+                history.append(f"Фільтр за роком: {year}")
             except ValueError:
                 print("Помилка: введіть коректне число для року.")
 
@@ -115,6 +198,7 @@ def run_menu(catalog: list[Car]) -> None:
                 print(f"\nНайдорожче авто: {car.full_name} — ${car.price:,.2f}")
             else:
                 print("\nКаталог порожній.")
+            history.append("Знайдено найдорожче авто")
 
         elif choice == "5":
             car = find_lowest_mileage(catalog)
@@ -122,18 +206,26 @@ def run_menu(catalog: list[Car]) -> None:
                 print(f"\nАвто з найменшим пробігом: {car.full_name} — {car.mileage:,} км")
             else:
                 print("\nКаталог порожній.")
+            history.append("Знайдено авто з найменшим пробігом")
 
         elif choice == "6":
             avg = calculate_average_price(catalog)
             print(f"\nСередня ціна авто в каталозі: ${avg:,.2f}")
+            history.append("Обчислено середню ціну")
 
         elif choice == "7":
             catalog.append(create_car_from_input())
             print("Автомобіль додано до каталогу.")
+            history.append("Додано автомобіль")
 
         elif choice == "8":
             print("\nРоботу завершено.")
             break
+        elif choice == "9":
+            run_lab2_demo(catalog, history)
+        elif choice == "10":
+            run_benchmark()
+            history.append("Виконано benchmark list vs dict")
         else:
             print("\nНевідома команда. Спробуйте ще раз.")
 
