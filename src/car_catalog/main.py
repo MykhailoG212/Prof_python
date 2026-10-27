@@ -13,6 +13,7 @@ from car_catalog.analytics import (
 )
 from car_catalog.benchmark import run_benchmark
 from car_catalog.models import Car
+from car_catalog.oop_demo import run_demo as run_lab4_demo
 from car_catalog.processors import (
     build_cars_by_id_index,
     count_cars_by_brand,
@@ -67,6 +68,7 @@ def print_menu() -> None:
     print("10. Benchmark пошуку list vs dict")
     print("11. Демонстрація потокової обробки ЛР3")
     print("12. Benchmark eager vs lazy для 100 000 записів")
+    print("13. Демонстрація типізованої ООП-моделі ЛР4")
 
 
 def _read_non_empty(prompt: str) -> str:
@@ -236,6 +238,9 @@ def run_menu(catalog: list[Car]) -> None:
         elif choice == "12":
             run_streaming_benchmark()
             history.append("Виконано benchmark eager vs lazy")
+        elif choice == "13":
+            run_lab4_demo()
+            history.append("Виконано демонстрацію ООП-моделі ЛР4")
         else:
             print("\nНевідома команда. Спробуйте ще раз.")
 
