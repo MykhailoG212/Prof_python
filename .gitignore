@@ -25,3 +25,7 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Lab 5 generated files
+output/
+logs/

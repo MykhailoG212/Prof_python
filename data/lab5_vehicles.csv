@@ -1,0 +1,5 @@
+vehicle_id,brand,model,year,price,mileage
+1,Tesla,Model Y,2023,50000,12000
+2,Toyota,Camry,2020,25000,45000
+invalid,Unknown,Model,2020,not-a-price,100
+3,BMW,M3,2022,72000,24000
