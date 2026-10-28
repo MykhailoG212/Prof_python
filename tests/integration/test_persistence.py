@@ -363,6 +363,9 @@ def test_alembic_migration_adds_unique_vin_and_backfills_existing_cars(tmp_path:
 
     with closing(sqlite3.connect(database_path)) as connection:
         assert connection.execute("SELECT vin FROM cars WHERE id = 1").fetchone() == ("LEGACY-1",)
+        assert connection.execute("SELECT country FROM manufacturers WHERE id = 1").fetchone() == (
+            "Unknown",
+        )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
                 """
@@ -371,6 +374,14 @@ def test_alembic_migration_adds_unique_vin_and_backfills_existing_cars(tmp_path:
                 """,
                 (1, "Corolla", 2021, 20_000, 10_000, "LEGACY-1"),
             )
+        connection.execute(
+            """
+            INSERT INTO cars (manufacturer_id, model, year, price, mileage, vin)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (1, "Prius", 2022, 30_000, 0, None),
+        )
+        assert connection.execute("SELECT vin FROM cars WHERE id = 2").fetchone() == (None,)
 
 
 def test_alembic_supports_downgrade_and_upgrade_to_head(tmp_path: Path) -> None:
@@ -385,15 +396,31 @@ def test_alembic_supports_downgrade_and_upgrade_to_head(tmp_path: Path) -> None:
     command.upgrade(alembic_config, "head")
     command.downgrade(alembic_config, "-1")
     with closing(sqlite3.connect(database_path)) as connection:
-        column_names = {row[1] for row in connection.execute("PRAGMA table_info(cars)")}
-        assert "vin" not in column_names
+        car_columns = {
+            row[1]: row[3]
+            for row in connection.execute("PRAGMA table_info(cars)")
+        }
+        manufacturer_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(manufacturers)")
+        }
+        assert car_columns["vin"] == 1
+        assert "country" not in manufacturer_columns
 
     command.upgrade(alembic_config, "head")
     with closing(sqlite3.connect(database_path)) as connection:
-        column_names = {row[1] for row in connection.execute("PRAGMA table_info(cars)")}
-        assert "vin" in column_names
+        car_columns = {
+            row[1]: row[3]
+            for row in connection.execute("PRAGMA table_info(cars)")
+        }
+        manufacturer_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(manufacturers)")
+        }
+        assert car_columns["vin"] == 0
+        assert "country" in manufacturer_columns
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
-            "0002_unique_vin",
+            "0003_country_nullable_vin",
         )
 
     command.downgrade(alembic_config, "base")
@@ -413,7 +440,7 @@ def test_alembic_supports_downgrade_and_upgrade_to_head(tmp_path: Path) -> None:
         }
         assert {"cars", "manufacturers", "alembic_version"} <= table_names
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
-            "0002_unique_vin",
+            "0003_country_nullable_vin",
         )
 
 

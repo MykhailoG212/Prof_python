@@ -14,11 +14,17 @@ class ManufacturerRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def create(self, name: str) -> ManufacturerRecord:
+    def create(self, name: str, country: str = "Unknown") -> ManufacturerRecord:
         normalized_name = name.strip()
         if not normalized_name:
             raise ValueError("Manufacturer name cannot be empty")
-        manufacturer = ManufacturerRecord(name=normalized_name)
+        normalized_country = country.strip()
+        if not normalized_country:
+            raise ValueError("Manufacturer country cannot be empty")
+        manufacturer = ManufacturerRecord(
+            name=normalized_name,
+            country=normalized_country,
+        )
         self._session.add(manufacturer)
         self._session.flush()
         return manufacturer
@@ -70,7 +76,7 @@ class CarRepository:
         year: int,
         price: float,
         mileage: int,
-        vin: str,
+        vin: str | None,
     ) -> CarRecord:
         self._validate_car_data(model, year, price, mileage, vin)
         if self._session.get(ManufacturerRecord, manufacturer_id) is None:
@@ -81,7 +87,7 @@ class CarRepository:
             year=year,
             price=price,
             mileage=mileage,
-            vin=vin.strip(),
+            vin=vin.strip() if vin is not None else None,
         )
         self._session.add(car)
         self._session.flush()
@@ -190,7 +196,7 @@ class CarRepository:
         year: int,
         price: float,
         mileage: int,
-        vin: str,
+        vin: str | None,
     ) -> None:
         if not model.strip():
             raise ValueError("Car model cannot be empty")
@@ -199,7 +205,7 @@ class CarRepository:
         cls._validate_price(price)
         if mileage < 0:
             raise ValueError("Mileage cannot be negative")
-        if not vin.strip():
+        if vin is not None and not vin.strip():
             raise ValueError("VIN cannot be empty")
 
     @staticmethod

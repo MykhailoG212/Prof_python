@@ -20,6 +20,14 @@ class BrandStatistics(TypedDict):
     total_value: float
 
 
+class CatalogStatistics(TypedDict):
+    """Price and mileage highlights for the complete catalog."""
+
+    average_price: float
+    most_expensive_car: CarRecord | None
+    lowest_mileage_car: CarRecord | None
+
+
 class CarCatalogService:
     """Coordinates catalog operations that span multiple repository writes."""
 
@@ -54,6 +62,31 @@ class CarCatalogService:
             for brand, count, average_price, max_price, total_value in rows
         ]
 
+    def get_catalog_statistics(self) -> CatalogStatistics:
+        """Return aggregate price and car records using one database session."""
+        with self._session_factory() as session:
+            repository = CarRepository(session)
+            return {
+                "average_price": repository.average_price(),
+                "most_expensive_car": repository.most_expensive(),
+                "lowest_mileage_car": repository.lowest_mileage(),
+            }
+
+    def get_average_price(self) -> float:
+        """Return the average price across the catalog."""
+        with self._session_factory() as session:
+            return CarRepository(session).average_price()
+
+    def get_most_expensive_car(self) -> CarRecord | None:
+        """Return the most expensive car, if the catalog is not empty."""
+        with self._session_factory() as session:
+            return CarRepository(session).most_expensive()
+
+    def get_lowest_mileage_car(self) -> CarRecord | None:
+        """Return the car with the lowest mileage, if the catalog is not empty."""
+        with self._session_factory() as session:
+            return CarRepository(session).lowest_mileage()
+
     def update_price(self, car_id: int, price: float) -> bool:
         """Update one car's price in its own transaction."""
         with self._session_factory.begin() as session:
@@ -85,3 +118,14 @@ class CarCatalogService:
                     raise ValueError(f"Car {car_id} does not belong to manufacturer {manufacturer_id}")
                 repository.update(car_id, price=price)
         return len(price_updates)
+
+    def bulk_update_manufacturer_prices(
+        self,
+        manufacturer_id: int,
+        price_updates: Mapping[int, float],
+    ) -> int:
+        """Update selected manufacturer prices atomically."""
+        return self.update_prices_for_manufacturer(manufacturer_id, price_updates)
+
+
+CarCatalogDbService = CarCatalogService

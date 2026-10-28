@@ -16,6 +16,7 @@ class ManufacturerRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    country: Mapped[str] = mapped_column(String(100), nullable=False, default="Unknown")
     cars: Mapped[list["CarRecord"]] = relationship(
         back_populates="manufacturer",
         passive_deletes="all",
@@ -44,5 +45,5 @@ class CarRecord(Base):
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
     mileage: Mapped[int] = mapped_column(Integer, nullable=False)
-    vin: Mapped[str] = mapped_column(String(32), nullable=False)
+    vin: Mapped[str | None] = mapped_column(String(32), nullable=True)
     manufacturer: Mapped[ManufacturerRecord] = relationship(back_populates="cars")

@@ -105,6 +105,8 @@ python -m car_catalog.reliable.benchmark
 
 ## Лабораторна робота №7: SQLite persistence layer
 
+Міграція `0003_country_nullable_vin` додає `manufacturers.country` (для наявних рядків заповнює `Unknown`) і дозволяє NULL у `cars.vin`; нові репозиторні записи виробників за замовчуванням також отримують країну `Unknown`.
+
 Пакет `car_catalog.persistence` додає SQLite persistence layer до каталогу: SQLAlchemy-моделі `ManufacturerRecord` і `CarRecord` мають зв'язок one-to-many, первинні та зовнішній ключі, обмеження значень і унікальний VIN. `ManufacturerRepository` та `CarRepository` реалізують CRUD; репозиторій авто також підтримує пошук виробника, фільтр року, найдорожче авто, середню ціну та мінімальний пробіг. `CarCatalogService.update_prices_for_manufacturer()` змінює кілька цін в одній транзакції: помилка валідації чи належності авто відкочує всі зміни.
 
 Щоб застосувати Alembic-міграції до SQLite-файлу за замовчуванням:
@@ -149,7 +151,7 @@ CREATE TABLE IF NOT EXISTS "cars" (
     year INTEGER NOT NULL,
     price FLOAT NOT NULL,
     mileage INTEGER NOT NULL,
-    vin VARCHAR(32) NOT NULL,
+    vin VARCHAR(32),
     PRIMARY KEY (id),
     CONSTRAINT fk_cars_manufacturer_id_manufacturers FOREIGN KEY(manufacturer_id) REFERENCES manufacturers (id) ON DELETE CASCADE,
     CONSTRAINT ck_cars_year CHECK (year >= 1886),
@@ -166,13 +168,34 @@ sqlite> PRAGMA table_info(cars);
 3|year|INTEGER|1||0
 4|price|FLOAT|1||0
 5|mileage|INTEGER|1||0
-6|vin|VARCHAR(32)|1||0
+6|vin|VARCHAR(32)|0||0
 sqlite> .quit
 ```
 
 Репозиторії приймають SQLAlchemy `Session`; керуйте їх записами через `with database.session_factory.begin() as session:` — успішний блок виконує commit, виняток автоматично викликає rollback. `search_cars_by_manufacturer()` окремо демонструє параметризований SQLite DB-API запит. Транзакційність забезпечує атомарність і довговічність після commit, обмеження та зовнішні ключі — узгодженість, а ізоляція транзакцій залежить від режиму SQLite та рівня блокування.
 
-Integration tests використовують окремі тимчасові SQLite-файли, перевіряють CRUD, окремі зміни ціни та пробігу, зв'язок виробник–авто, пошук/агрегати, UNIQUE та CHECK constraints, DB-API запит, commit/rollback, перехід міграції зі старої схеми та downgrade/upgrade. Перевірка цієї редакції: `python -m pytest -v` — **100 passed**, покриття **86.62%**; `python -m mypy` — помилок типізації немає.
+Integration tests використовують окремі тимчасові SQLite-файли, перевіряють CRUD, окремі зміни ціни та пробігу, зв'язок виробник–авто, пошук/агрегати, UNIQUE та CHECK constraints, DB-API запит, commit/rollback, перехід міграції зі старої схеми та downgrade/upgrade.
+
+## Лабораторна робота №8: REST API та асинхронні HTTP-запити
+
+`car_catalog.api` надає FastAPI CRUD для автомобілів, пошук за моделлю/виробником, фільтри за роком і ціною, перелік авто виробника та статистику через наявний `CarCatalogDbService`. API використовує SQLAlchemy persistence layer із ЛР7 і Pydantic v2-схеми. Відповіді на помилкові запити мають HTTP-коди 404, 409 та 422; створення повертає 201, видалення — 204.
+
+Встановіть залежності API й тестів та запустіть сервер:
+
+```powershell
+python -m pip install -e ".[test]"
+python -m alembic upgrade head
+python -m uvicorn car_catalog.api:app --reload
+```
+
+Для `POST /cars/batch-check` задайте URL довіреного зовнішнього сервісу у `CAR_CATALOG_EXTERNAL_API_URL`. Endpoint приймає до 100 додатних ID, перевіряє записи паралельно з обмеженням конкурентності, таймаутом і повторними спробами з експоненційною затримкою. Якщо інтеграцію не налаштовано, endpoint повертає 503 замість удаваного успіху.
+
+Запустіть інтеграційні API-тести та весь набір:
+
+```powershell
+python -m pytest tests/test_api.py -v
+python -m pytest -v
+```
 
 ## Тестування
 
@@ -180,7 +203,7 @@ Integration tests використовують окремі тимчасові S
 python -m pytest -v
 ```
 
-Команда запускає `tests/unit/` і `tests/integration/`, показує statement та branch coverage у терміналі й створює HTML-звіт `htmlcov/index.html`. Повний suite завершується помилкою, якщо combined coverage нижче 80%. Для чистого встановлення: `python -m pip install -e ".[test]"`. Integration suite має маркер `integration` і містить сценарії з реальною файловою системою в `tmp_path`.
+Команда запускає тести з `tests/`, показує statement та branch coverage у терміналі й створює HTML-звіт `htmlcov/index.html`. Повний suite завершується помилкою, якщо combined coverage нижче 80%. Для чистого встановлення: `python -m pip install -e ".[test]"`. Integration suite має маркер `integration` і містить сценарії з реальною файловою системою в `tmp_path`.
 
 Unit suite має окремі модулі за компонентами: application/repository interactions, CLI, OOP models, analytics/processors, reliable configuration/validation та streaming primitives. Integration suite ізольовано перевіряє надійний CSV → JSON import/export і файловий streaming pipeline.
 
