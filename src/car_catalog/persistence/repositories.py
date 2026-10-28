@@ -133,13 +133,11 @@ class CarRepository:
         price: float | None = None,
         mileage: int | None = None,
     ) -> CarRecord | None:
-        if price is not None:
-            self._validate_price(price)
-        if mileage is not None and mileage < 0:
-            raise ValueError("Mileage cannot be negative")
         car = self._session.get(CarRecord, car_id)
         if car is None:
             return None
+        if price is not None and not math.isfinite(price):
+            raise ValueError("Price must be finite")
         if price is not None:
             car.price = price
         if mileage is not None:
