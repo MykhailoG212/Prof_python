@@ -120,13 +120,59 @@ python -m alembic upgrade head
 python -m car_catalog.persistence.main
 ```
 
-Або після встановлення проєкту запустіть entry point `car-catalog-lab7`. CLI створює схему для нової бази та надає перегляд, пошук за маркою, фільтр року, агрегати, CRUD автомобілів і масову зміну цін. Кожна операція використовує окрему SQLAlchemy-сесію; масове оновлення виконується атомарно.
+Або після встановлення проєкту запустіть entry point `car-catalog-lab7`. CLI створює схему для нової бази та надає перегляд, пошук за маркою, фільтр року, агрегати, CRUD автомобілів і масову зміну цін. Пункт 11 виконує JOIN/GROUP BY і показує COUNT, AVG, MAX та SUM за кожним виробником. Кожна операція використовує окрему SQLAlchemy-сесію; масове оновлення виконується атомарно.
 
 Для окремої бази задайте URL в `CAR_CATALOG_DATABASE_URL` (наприклад, `sqlite:///data/catalog.db`) перед міграцією та запуском застосунку. Перша міграція створює таблиці `manufacturers` і `cars`; наступна додає обов'язковий унікальний VIN та заповнює його для вже наявних записів. `Database.create_schema()` зручний для нової БД і тестів; для оновлення існуючої БД використовуйте Alembic.
 
+Міграції підтримують і прямий, і зворотний перехід. `downgrade -1` відкочує останню міграцію; `downgrade base` видаляє всі таблиці застосунку та їхні дані, тому виконуйте повний downgrade лише для тестової/резервованої бази:
+
+```bash
+python -m alembic downgrade -1
+python -m alembic upgrade head
+
+# Повний відкат схеми, потім повторне створення
+python -m alembic downgrade base
+python -m alembic upgrade head
+```
+
+Для перевірки реальної SQLite-схеми після `upgrade head` виконайте команди нижче. `.tables` і `.schema` — команди інтерактивного `sqlite3`; `PRAGMA table_info` показує стовпці, типи та `NOT NULL`:
+
+```text
+sqlite3 car_catalog.db
+sqlite> .tables
+alembic_version  cars             manufacturers
+sqlite> .schema cars
+CREATE TABLE IF NOT EXISTS "cars" (
+    id INTEGER NOT NULL,
+    manufacturer_id INTEGER NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    year INTEGER NOT NULL,
+    price FLOAT NOT NULL,
+    mileage INTEGER NOT NULL,
+    vin VARCHAR(32) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_cars_manufacturer_id_manufacturers FOREIGN KEY(manufacturer_id) REFERENCES manufacturers (id) ON DELETE CASCADE,
+    CONSTRAINT ck_cars_year CHECK (year >= 1886),
+    CONSTRAINT ck_cars_price CHECK (price >= 0),
+    CONSTRAINT ck_cars_model CHECK (length(trim(model)) > 0),
+    CONSTRAINT ck_cars_mileage CHECK (mileage >= 0),
+    CONSTRAINT uq_cars_vin UNIQUE (vin)
+);
+CREATE INDEX ix_cars_manufacturer_year ON cars (manufacturer_id, year);
+sqlite> PRAGMA table_info(cars);
+0|id|INTEGER|1||1
+1|manufacturer_id|INTEGER|1||0
+2|model|VARCHAR(100)|1||0
+3|year|INTEGER|1||0
+4|price|FLOAT|1||0
+5|mileage|INTEGER|1||0
+6|vin|VARCHAR(32)|1||0
+sqlite> .quit
+```
+
 Репозиторії приймають SQLAlchemy `Session`; керуйте їх записами через `with database.session_factory.begin() as session:` — успішний блок виконує commit, виняток автоматично викликає rollback. `search_cars_by_manufacturer()` окремо демонструє параметризований SQLite DB-API запит. Транзакційність забезпечує атомарність і довговічність після commit, обмеження та зовнішні ключі — узгодженість, а ізоляція транзакцій залежить від режиму SQLite та рівня блокування.
 
-Integration tests використовують окремі тимчасові SQLite-файли, перевіряють CRUD, зв'язок виробник–авто, пошук/агрегати, унікальність VIN, DB-API запит, commit/rollback і перехід міграції зі старої схеми.
+Integration tests використовують окремі тимчасові SQLite-файли, перевіряють CRUD, зв'язок виробник–авто, пошук/агрегати, UNIQUE та CHECK constraints, DB-API запит, commit/rollback, перехід міграції зі старої схеми та downgrade/upgrade. Перевірка цієї редакції: `python -m pytest -v` — **99 passed**, покриття **86.44%**; `python -m mypy` — помилок типізації немає.
 
 ## Тестування
 

@@ -1,11 +1,23 @@
 """Transactional application services for persisted catalog operations."""
 
 from collections.abc import Mapping
+from typing import TypedDict
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from car_catalog.persistence.models import ManufacturerRecord
+from car_catalog.persistence.models import CarRecord, ManufacturerRecord
 from car_catalog.persistence.repositories import CarRepository
+
+
+class BrandStatistics(TypedDict):
+    """Aggregated car inventory metrics for one manufacturer."""
+
+    brand: str
+    count: int
+    avg_price: float
+    max_price: float
+    total_value: float
 
 
 class CarCatalogService:
@@ -13,6 +25,34 @@ class CarCatalogService:
 
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
+
+    def get_brand_statistics(self) -> list[BrandStatistics]:
+        """Return per-manufacturer inventory counts and price aggregates."""
+        car_count = func.count(CarRecord.id)
+        statement = (
+            select(
+                ManufacturerRecord.name,
+                car_count,
+                func.avg(CarRecord.price),
+                func.max(CarRecord.price),
+                func.sum(CarRecord.price),
+            )
+            .join(CarRecord, CarRecord.manufacturer_id == ManufacturerRecord.id)
+            .group_by(ManufacturerRecord.id, ManufacturerRecord.name)
+            .order_by(car_count.desc(), ManufacturerRecord.name)
+        )
+        with self._session_factory() as session:
+            rows = session.execute(statement).all()
+        return [
+            {
+                "brand": brand,
+                "count": int(count),
+                "avg_price": round(float(average_price), 2),
+                "max_price": float(max_price),
+                "total_value": float(total_value),
+            }
+            for brand, count, average_price, max_price, total_value in rows
+        ]
 
     def update_prices_for_manufacturer(
         self,
