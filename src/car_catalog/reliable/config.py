@@ -73,6 +73,8 @@ def load_config(path: Path) -> AppConfig:
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ConfigurationError("Invalid YAML configuration") from error
+    if config.logging.level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise ConfigurationError("logging.level must be DEBUG, INFO, WARNING, ERROR, or CRITICAL")
     if config.processing.minimum_year > config.processing.maximum_year:
         raise ConfigurationError("minimum_year must not exceed maximum_year")
     if config.processing.minimum_price > config.processing.maximum_price:

@@ -3,6 +3,7 @@
 import json
 import os
 from contextlib import contextmanager
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Iterator, TextIO, cast
@@ -13,9 +14,9 @@ from car_catalog.reliable.exceptions import DataExportError
 @contextmanager
 def atomic_text_writer(path: Path) -> Iterator[TextIO]:
     """Створює тимчасовий файл і замінює ціль лише після успішного запису."""
-    path.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent, suffix=".tmp") as file:
             temporary = Path(file.name)
             yield cast(TextIO, file)
@@ -24,13 +25,28 @@ def atomic_text_writer(path: Path) -> Iterator[TextIO]:
         raise DataExportError(f"Cannot export JSON to: {path}") from error
     finally:
         if temporary is not None and temporary.exists():
-            temporary.unlink()
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
 
 
-def export_json(path: Path, payload: dict[str, object]) -> None:
+def export_json(
+    path: Path,
+    vehicles: Iterable[dict[str, int | float | str]],
+    statistics: Callable[[], dict[str, int]],
+) -> None:
+    """Writes a JSON catalog incrementally without collecting records in RAM."""
     try:
         with atomic_text_writer(path) as target:
-            json.dump(payload, target, ensure_ascii=False, indent=2)
-            target.write("\n")
+            target.write('{\n  "vehicles": [')
+            first = True
+            for vehicle in vehicles:
+                target.write("\n    " if first else ",\n    ")
+                json.dump(vehicle, target, ensure_ascii=False)
+                first = False
+            target.write('\n  ],\n  "statistics": ')
+            json.dump(statistics(), target, ensure_ascii=False, indent=2)
+            target.write("\n}\n")
     except (TypeError, ValueError) as error:
         raise DataExportError("JSON payload is not serializable") from error
