@@ -1,5 +1,8 @@
 """Application service: use cases каталогу з DI та залежністю від Protocol."""
 
+import asyncio
+from threading import Lock
+
 from car_catalog.criteria import BrandModelCriteria, YearCriteria
 from car_catalog.dto import VehicleData
 from car_catalog.models import ElectricCar, Vehicle
@@ -12,12 +15,18 @@ class VehicleCatalogService:
     def __init__(self, repository: VehicleRepository) -> None:
         self._repository = repository
         self._next_id = 1
+        self._add_lock = Lock()
 
     def add(self, vehicle: Vehicle) -> int:
-        item_id = self._next_id
-        self._repository.add(item_id, vehicle)
-        self._next_id += 1
-        return item_id
+        with self._add_lock:
+            item_id = self._next_id
+            self._repository.add(item_id, vehicle)
+            self._next_id += 1
+            return item_id
+
+    async def add_async(self, vehicle: Vehicle) -> int:
+        """Adds a vehicle without blocking an async caller's event loop."""
+        return await asyncio.to_thread(self.add, vehicle)
 
     def search(self, criteria: SearchCriteria[Vehicle]) -> list[Vehicle]:
         return [vehicle for vehicle in self._repository.all() if criteria.matches(vehicle)]
@@ -48,4 +57,3 @@ class VehicleCatalogService:
             "mileage": vehicle.mileage,
             "kind": "electric" if isinstance(vehicle, ElectricCar) else "car",
         }
-

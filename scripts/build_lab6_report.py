@@ -455,12 +455,13 @@ def main() -> None:
         code(doc, "@pytest.mark.integration\ndef test_tolerant_import_exports_only_valid_records_and_logs_error(tmp_path):\n    config_path = tmp_path / \"config.yaml\"\n    input_path = write_config(config_path)\n    write_csv(input_path)\n    config = load_config(config_path)\n    report = import_catalog(config)\n    assert (report.valid_count, report.invalid_count) == (2, 1)\n    payload = json.loads(config.output_path.read_text(encoding=\"utf-8\"))\n    assert [row[\"vehicle_id\"] for row in payload[\"vehicles\"]] == [1, 2]")
         paragraph(doc, "Це перевіряє кілька компонентів з реальною файловою системою, але тільки всередині tmp_path. Окремий strict сценарій перевіряє зупинку, chaining та збереження старого експорту. Мережеві API в проєкті відсутні, тому тести не залежать від Internet.")
 
-        heading(doc, "5.7 AsyncMock: аргументоване пояснення відсутності", 2)
-        paragraph(doc, "Production-код каталогу синхронний: repository, CSV/YAML/JSON та CLI не мають async API чи coroutine dependency. Додавання штучного AsyncMock-тесту не перевіряло б реальну поведінку застосунку й суперечило б вимозі не over-mock-ати. Якщо з’явиться async API, потрібно перевіряти результат await і assert_awaited_once_with, а також failure через side_effect; для поточного варіанта обґрунтовано залишено синхронні mocks.")
+        heading(doc, "5.7 AsyncMock та асинхронний виклик", 2)
+        code(doc, "async def add_async(self, vehicle: Vehicle) -> int:\n    return await asyncio.to_thread(self.add, vehicle)\n\nthread_offload = AsyncMock(return_value=7)\nmonkeypatch.setattr(\"car_catalog.application.asyncio.to_thread\", thread_offload)\nassert asyncio.run(service.add_async(vehicle)) == 7\nthread_offload.assert_awaited_once_with(service.add, vehicle)\n\nthread_offload.side_effect = OSError(\"storage unavailable\")\nwith pytest.raises(OSError, match=\"storage unavailable\"):\n    asyncio.run(service.add_async(vehicle))")
+        paragraph(doc, "Сервіс надає async-адаптер для блокувального repository без блокування event loop. Lock захищає генерацію ID при паралельних sync/async записах. AsyncMock перевіряє awaited-виклик межі thread offload, результат, аргументи та передачу помилки; asyncio.run запускає перевірку без додаткового pytest-asyncio.")
 
         heading(doc, "6. Запуск тестів і результати")
         paragraph(doc, f"Одна команда повного запуску: python -m pytest. Фактичний результат запуску під час формування звіту: {test_result}; integration: {integration_match.group(0)}; unit та решта тестів: {unit_match.group(0)}. Середовище: Python {sys.version.split()[0]}, pytest із pytest-cov. Поріг повного suite у pyproject.toml — 80%.")
-        paragraph(doc, "Окремі команди: python -m pytest tests/test_services.py; python -m pytest tests/test_services.py::test_calculate_average_price; python -m pytest -m integration --cov-fail-under=0. Для subset-запуску поріг вимкнено, бо частковий набір не має представляти coverage всього пакета.")
+        paragraph(doc, "Окремі команди: python -m pytest tests/test_services.py --cov-fail-under=0; python -m pytest tests/test_services.py::test_calculate_average_price --cov-fail-under=0; python -m pytest -m integration --cov-fail-under=0. Для subset-запуску поріг вимкнено, бо частковий набір не має представляти coverage всього пакета.")
         doc.add_picture(str(test_image), width=Cm(16))
         paragraph(doc, "Рисунок 1 — Фактичний результат повного запуску pytest і згенерований coverage.", size=10, align=WD_ALIGN_PARAGRAPH.CENTER, indent=False)
         paragraph(doc, f"Mypy: {mypy_output}.")
@@ -518,7 +519,7 @@ def main() -> None:
             set_font(p.add_run(answer), 10)
 
         heading(doc, "11. Висновок")
-        paragraph(doc, f"Створено й перевірено test suite для каталогу автомобілів із unit та integration tests, fixtures різних scopes, factory, parametrization, boundary/error checks, tmp_path, monkeypatch environment/config, Mock/MagicMock, side_effect, interaction assertions, configuration, файлового імпорту/експорту, branch і statement coverage. Повний suite проходить: {test_result}; coverage вище встановленого 80% threshold. Структурні прогалини branch coverage описані окремо; AsyncMock обґрунтовано не застосовано, оскільки застосунок не має асинхронної поведінки.")
+        paragraph(doc, f"Створено й перевірено test suite для каталогу автомобілів із unit та integration tests, fixtures різних scopes, factory, parametrization, boundary/error checks, tmp_path, monkeypatch environment/config, Mock/MagicMock/AsyncMock, side_effect, interaction assertions, configuration, файлового імпорту/експорту, branch і statement coverage. Повний suite проходить: {test_result}; coverage вище встановленого 80% threshold. Структурні прогалини branch coverage описані окремо.")
 
         doc.core_properties.title = "Лабораторна робота №6 — Автоматизоване тестування"
         doc.core_properties.subject = "Професійний Python, варіант 5 — каталог автомобілів"
