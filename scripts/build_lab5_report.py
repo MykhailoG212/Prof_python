@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from car_catalog.reliable.benchmark import measure_benchmark
+from car_catalog.reliable.benchmark import measure_benchmark  # noqa: E402
 
 TEMPLATE = ROOT / "report" / "Горин_Михайло_Лаб04_V5.docx"
 OUTPUT = ROOT / "report" / "Горин_Михайло_Лаб05_V5.docx"

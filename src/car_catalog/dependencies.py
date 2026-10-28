@@ -1,6 +1,5 @@
 """FastAPI dependencies for database and upstream service access."""
 
-import os
 from collections.abc import Generator
 from typing import cast
 from urllib.parse import urlsplit
@@ -8,6 +7,7 @@ from urllib.parse import urlsplit
 from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from car_catalog.config import get_settings
 from car_catalog.external_api import ExternalCarApiClient
 from car_catalog.persistence import CarCatalogDbService, Database
 
@@ -27,7 +27,7 @@ def get_catalog_service(request: Request) -> CarCatalogDbService:
 
 def get_external_client() -> ExternalCarApiClient:
     """Create an upstream client from an operator-configured base URL."""
-    base_url = os.environ.get("CAR_CATALOG_EXTERNAL_API_URL")
+    base_url = get_settings().external_api_url
     if not base_url:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

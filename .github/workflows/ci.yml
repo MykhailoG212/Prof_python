@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint, test, and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project and development dependencies
+        run: |
+          python -m pip install --upgrade pip build
+          python -m pip install -e ".[dev,test]"
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: >-
+          ruff format --check
+          src/car_catalog/api.py
+          src/car_catalog/config.py
+          src/car_catalog/dependencies.py
+          src/car_catalog/logging_config.py
+          src/car_catalog/main.py
+          src/car_catalog/persistence/database.py
+          src/car_catalog/streaming/pipeline.py
+          tests/test_api.py
+          tests/test_config.py
+
+      - name: Mypy type check
+        run: mypy
+
+      - name: Run tests with coverage
+        run: pytest
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Build Docker image
+        run: docker build --tag car-catalog:ci .

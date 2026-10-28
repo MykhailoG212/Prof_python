@@ -5,7 +5,6 @@ from pathlib import Path
 
 from car_catalog.streaming.analytics import calculate_statistics, group_cars_by_brand
 from car_catalog.streaming.batches import batched
-from car_catalog.streaming.filters import first_matching_cars
 from car_catalog.streaming.models import ValidationStats
 from car_catalog.streaming.pipeline import build_pipeline
 from car_catalog.streaming.transformations import summarize_cars

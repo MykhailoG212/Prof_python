@@ -1,19 +1,28 @@
 """Database engine and session configuration."""
 
-import os
 import sqlite3
+from pathlib import Path
 
-from sqlalchemy import URL, create_engine, event
+from sqlalchemy import URL, create_engine, event, make_url
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+
+from car_catalog.config import get_settings
 
 
 class Database:
     """Owns the engine and transaction-ready SQLAlchemy session factory."""
 
     def __init__(self, url: str | URL | None = None) -> None:
-        database_url = url or os.environ.get("CAR_CATALOG_DATABASE_URL", "sqlite:///car_catalog.db")
-        connect_args = {"check_same_thread": False} if str(database_url).startswith("sqlite") else {}
+        database_url = url if url is not None else get_settings().database_url
+        parsed_url = make_url(database_url)
+        if parsed_url.get_backend_name() == "sqlite":
+            sqlite_path = parsed_url.database
+            if sqlite_path and sqlite_path != ":memory:" and not sqlite_path.startswith("file:"):
+                Path(sqlite_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+        connect_args = (
+            {"check_same_thread": False} if str(database_url).startswith("sqlite") else {}
+        )
         self.engine: Engine = create_engine(database_url, connect_args=connect_args)
         if self.engine.dialect.name == "sqlite":
             event.listen(self.engine, "connect", self._enable_sqlite_foreign_keys)

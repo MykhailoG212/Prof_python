@@ -1,6 +1,8 @@
 import math
 from collections import deque
 
+import uvicorn
+
 from car_catalog.analytics import (
     calculate_total_and_average_price,
     calculate_variadic_average,
@@ -30,6 +32,8 @@ from car_catalog.services import (
 )
 from car_catalog.streaming.benchmark import run_benchmark as run_streaming_benchmark
 from car_catalog.streaming.demo import run_demo as run_lab3_demo
+from car_catalog.config import get_settings
+from car_catalog.logging_config import configure_logging
 
 
 def get_demo_cars() -> list[Car]:
@@ -50,7 +54,9 @@ def print_cars(cars: list[Car]) -> None:
     print(f"{'Марка та Модель':<30} | {'Рік':<6} | {'Ціна, $':<12} | {'Пробіг, км':<10}")
     print("-" * 70)
     for car in cars:
-        print(f"{car.full_name:25} | Рік: {car.year:4} | Ціна: ${car.price:8.2f} | Пробіг: {car.mileage:7} км")
+        print(
+            f"{car.full_name:25} | Рік: {car.year:4} | Ціна: ${car.price:8.2f} | Пробіг: {car.mileage:7} км"
+        )
     print("=" * 70)
 
 
@@ -138,19 +144,12 @@ def run_lab2_demo(catalog: list[Car], history: deque[str]) -> None:
     )
 
     recent_cars = filter_cars(catalog, create_min_year_filter(2021))
-    print(
-        "[closure filter] Авто від 2021 року: "
-        f"{[car.full_name for car in recent_cars]}"
-    )
+    print(f"[closure filter] Авто від 2021 року: {[car.full_name for car in recent_cars]}")
 
     sorted_cars = sort_cars_by_price(catalog, descending=True)
+    print(f"[lambda sort] Найдорожчі авто: {[car.full_name for car in sorted_cars[:3]]}")
     print(
-        "[lambda sort] Найдорожчі авто: "
-        f"{[car.full_name for car in sorted_cars[:3]]}"
-    )
-    print(
-        "[*args] Середня ціна: "
-        f"${calculate_variadic_average(*(car.price for car in catalog)):,.2f}"
+        f"[*args] Середня ціна: ${calculate_variadic_average(*(car.price for car in catalog)):,.2f}"
     )
 
     created_car = create_car_record(
@@ -245,9 +244,21 @@ def run_menu(catalog: list[Car]) -> None:
             print("\nНевідома команда. Спробуйте ще раз.")
 
 
-def main() -> None:
+def run_demo() -> None:
     catalog = get_demo_cars()
     run_menu(catalog)
+
+
+def main() -> None:
+    """Start the production HTTP API."""
+    settings = get_settings()
+    configure_logging(settings)
+    uvicorn.run(
+        "car_catalog.api:app",
+        host=settings.host,
+        port=settings.port,
+        log_config=None,
+    )
 
 
 if __name__ == "__main__":

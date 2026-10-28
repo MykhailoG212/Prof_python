@@ -11,6 +11,16 @@ from car_catalog.persistence import CarRepository, Database, ManufacturerReposit
 pytestmark = pytest.mark.asyncio
 
 
+async def test_health_reports_status_and_environment(
+    api_client: httpx.AsyncClient,
+) -> None:
+    response = await api_client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert isinstance(response.json()["environment"], str)
+
+
 def add_manufacturer(
     database: Database,
     name: str = "Toyota",
@@ -206,6 +216,9 @@ async def test_manufacturer_cars_and_statistics(
     assert statistics.json()["average_price"] == 27_500
     assert statistics.json()["most_expensive_car"]["model"] == "Civic"
     assert statistics.json()["lowest_mileage_car"]["model"] == "Civic"
+    summary = await api_client.get("/cars/statistics/summary")
+    assert summary.status_code == 200
+    assert summary.json() == statistics.json()
 
 
 async def test_batch_check_runs_external_async_pipeline(api_client: httpx.AsyncClient) -> None:
@@ -221,9 +234,7 @@ async def test_batch_check_runs_external_async_pipeline(api_client: httpx.AsyncC
             "error": "Upstream returned HTTP 404",
         },
     ]
-    assert (
-        await api_client.post("/cars/batch-check", json={"car_ids": []})
-    ).status_code == 422
+    assert (await api_client.post("/cars/batch-check", json={"car_ids": []})).status_code == 422
 
 
 async def test_external_client_retries_transient_server_errors() -> None:

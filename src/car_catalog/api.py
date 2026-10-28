@@ -9,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from car_catalog.config import get_settings
 from car_catalog.dependencies import get_catalog_service, get_external_client, get_session
 from car_catalog.external_api import ExternalCarApiClient
 from car_catalog.persistence import (
@@ -48,6 +49,11 @@ def create_app(database: Database | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.database = application_database
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        """Report process health and the configured deployment environment."""
+        return {"status": "ok", "environment": get_settings().environment}
 
     @app.get("/cars", response_model=list[CarResponse])
     def list_cars(
@@ -93,6 +99,7 @@ def create_app(database: Database | None = None) -> FastAPI:
         return list(session.scalars(statement).unique())
 
     @app.get("/cars/statistics", response_model=CarStatisticsResponse)
+    @app.get("/cars/statistics/summary", response_model=CarStatisticsResponse)
     def get_statistics(
         service: Annotated[CarCatalogDbService, Depends(get_catalog_service)],
     ) -> CarStatisticsResponse:

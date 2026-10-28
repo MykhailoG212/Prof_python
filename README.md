@@ -258,3 +258,127 @@ python scripts/build_lab6_report.py
 
 Михайло Горин
 ЛНУ ім. Івана Франка, 121 — Інженерія програмного забезпечення
+
+## Production: ЛР10
+
+ЛР10 пакує проєкт `car-catalog` як wheel і source distribution, запускає наявний FastAPI-каталог через CLI, читає конфігурацію з оточення та постачає Docker-образ і GitHub Actions CI. Проєкт підтримує Python 3.11+, а CI і контейнер збираються на Python 3.12.
+
+### Конфігурація
+
+Налаштування завантажуються через `pydantic-settings` із змінних оточення та, для локальної розробки, із `.env`. Скопіюйте шаблон і за потреби змініть значення:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+| Змінна | Значення за замовчуванням | Призначення |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///car_catalog.db` | SQLAlchemy URL бази даних; абсолютний шлях SQLite підтримується |
+| `ENVIRONMENT` | `development` | Назва оточення, яку повертає `/health` |
+| `LOG_LEVEL` | `INFO` | Рівень структурованого JSON-логування |
+| `HOST` | `0.0.0.0` | Адреса HTTP-сервера |
+| `PORT` | `8000` | Порт HTTP-сервера (1–65535) |
+| `EXTERNAL_API_URL` | не задано | Необов'язкова абсолютна HTTP(S)-адреса для `/cars/batch-check` |
+
+Також підтримуються імена `CAR_CATALOG_DATABASE_URL`, `CAR_CATALOG_ENVIRONMENT`, `CAR_CATALOG_LOG_LEVEL`, `CAR_CATALOG_HOST`, `CAR_CATALOG_PORT` і `CAR_CATALOG_EXTERNAL_API_URL`. Не зберігайте реальні паролі, токени або приватні URL у репозиторії: `.env` ігнорується Git та Docker.
+
+### Локальний запуск API
+
+```powershell
+python -m pip install -e ".[dev,test]"
+car-catalog
+```
+
+Або запустіть CLI без інсталяції пакета після активації середовища:
+
+```powershell
+python -m car_catalog.main
+```
+
+API та інтерактивна документація доступні за адресами `http://127.0.0.1:8000`, `/docs` та `/redoc`. CLI `car-catalog` запускає HTTP API; інтерактивну демонстрацію каталогу можна запустити з Python через `car_catalog.main.run_demo()`.
+
+### REST API
+
+| Метод | Шлях | Призначення |
+|---|---|---|
+| `GET` | `/health` | Статус процесу та назва середовища |
+| `GET` | `/cars` | Список автомобілів із пошуком і фільтрами |
+| `POST` | `/cars` | Додавання автомобіля |
+| `GET` | `/cars/{car_id}` | Отримання автомобіля |
+| `PATCH` | `/cars/{car_id}` | Оновлення ціни та/або пробігу |
+| `DELETE` | `/cars/{car_id}` | Видалення автомобіля |
+| `GET` | `/manufacturers/{manufacturer_id}/cars` | Автомобілі виробника |
+| `GET` | `/cars/statistics/summary` | Зведена статистика каталогу |
+| `GET` | `/cars/statistics` | Сумісний короткий маршрут статистики |
+| `POST` | `/cars/batch-check` | Асинхронна перевірка зовнішніх ідентифікаторів; потребує `EXTERNAL_API_URL` |
+
+### Тести та перевірки якості
+
+Встановлення тестових і статичних інструментів, а також команди, які виконує CI:
+
+```powershell
+python -m pip install -e ".[dev,test]"
+ruff check .
+ruff format --check `
+  src/car_catalog/api.py `
+  src/car_catalog/config.py `
+  src/car_catalog/dependencies.py `
+  src/car_catalog/logging_config.py `
+  src/car_catalog/main.py `
+  src/car_catalog/persistence/database.py `
+  src/car_catalog/streaming/pipeline.py `
+  tests/test_api.py `
+  tests/test_config.py
+mypy
+pytest
+```
+
+CI перевіряє форматування всіх production-related Python-файлів, змінених у ЛР10. Pytest налаштований на branch coverage та звіти в терміналі й `htmlcov`; мінімальне покриття задається в `pyproject.toml`.
+
+### Збірка пакета
+
+```powershell
+python -m pip install build
+python -m build
+Get-ChildItem dist
+python -m pip install --force-reinstall (Get-ChildItem dist\car_catalog-1.0.0-py3-none-any.whl).FullName
+car-catalog
+```
+
+Команда `python -m build` створює wheel і sdist у `dist/`. Перевірка встановлення wheel запускає встановлену консольну точку входу; для ізоляції використовуйте окреме віртуальне середовище.
+
+### Docker
+
+Multi-stage Dockerfile використовує `python:3.12-slim`, запускає процес від непривілейованого `appuser` та перевіряє `/health`. SQLite-файл у контейнері розташований у `/app/data/car_catalog.db`; підключайте named volume для збереження даних між перезапусками:
+
+```powershell
+docker build -t car-catalog:1.0.0 .
+docker volume create car_data
+docker run -d --name car-catalog `
+  -p 8000:8000 `
+  -v car_data:/app/data `
+  -e DATABASE_URL=sqlite:////app/data/car_catalog.db `
+  -e ENVIRONMENT=production `
+  -e LOG_LEVEL=INFO `
+  car-catalog:1.0.0
+curl.exe http://localhost:8000/health
+docker logs car-catalog
+docker stop car-catalog
+docker rm car-catalog
+```
+
+На Linux/macOS ті самі параметри `docker run` можна записати в один рядок. Якщо використовуєте `--env-file`, перевірте, що `DATABASE_URL` вказує саме на `/app/data/car_catalog.db`, а `HOST` — на `0.0.0.0`. Не монтуйте `.env` у контейнер.
+
+### CI/CD та реліз
+
+Workflow `.github/workflows/ci.yml` запускається на push у `main`/`master` і pull request. Послідовні кроки: checkout, Python 3.12, встановлення залежностей, Ruff lint і format check, strict mypy за списком модулів у конфігурації, pytest із покриттям, збірка wheel/sdist та Docker image. Публікація образу чи пакета навмисно не виконується автоматично; для неї налаштуйте окремий релізний workflow і мінімальні потрібні секрети середовища.
+
+### Production checklist
+
+- [ ] Конфігурація середовища перевірена; у Git немає `.env`, паролів, токенів або приватних адрес.
+- [ ] Ruff, mypy та весь pytest-набір проходять, а покриття відповідає порогу з `pyproject.toml`.
+- [ ] Wheel і sdist зібрані, wheel встановлюється та надає команду `car-catalog`.
+- [ ] Docker-образ використовує `appuser`; `docker inspect` показує успішний healthcheck.
+- [ ] SQLite розташована на named volume `car_data:/app/data`; перевірено збереження після перезапуску контейнера.
+- [ ] `/health` повертає `{"status":"ok","environment":"production"}`; логи мають JSON-формат.
+- [ ] У CI успішно пройшли тести, побудова пакетів і Docker image; теги та нотатки релізу узгоджені з версією.

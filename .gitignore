@@ -32,3 +32,8 @@ logs/
 
 # Local SQLite databases
 *.db
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example

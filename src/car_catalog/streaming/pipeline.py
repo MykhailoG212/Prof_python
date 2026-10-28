@@ -1,6 +1,6 @@
 """Побудова lazy pipeline для одного або кількох CSV-файлів."""
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 from itertools import chain
 from pathlib import Path
 
@@ -14,12 +14,9 @@ from car_catalog.streaming.validation import validate_car_rows
 def iter_car_records(
     paths: Iterable[Path],
     stats: ValidationStats | None = None,
-) -> Iterator[CarRecord]:
+) -> Generator[CarRecord, None, None]:
     """Потоково читає, очищує, розбирає та валідує CSV з одного чи кількох файлів."""
-    rows = chain.from_iterable(
-        parse_csv_rows(clean_lines(read_lines(path)))
-        for path in paths
-    )
+    rows = chain.from_iterable(parse_csv_rows(clean_lines(read_lines(path))) for path in paths)
     yield from validate_car_rows(rows, stats)
 
 
