@@ -54,6 +54,16 @@ class CarCatalogService:
             for brand, count, average_price, max_price, total_value in rows
         ]
 
+    def update_price(self, car_id: int, price: float) -> bool:
+        """Update one car's price in its own transaction."""
+        with self._session_factory.begin() as session:
+            return CarRepository(session).update_price(car_id, price) is not None
+
+    def update_mileage(self, car_id: int, mileage: int) -> bool:
+        """Update one car's mileage in its own transaction."""
+        with self._session_factory.begin() as session:
+            return CarRepository(session).update_mileage(car_id, mileage) is not None
+
     def update_prices_for_manufacturer(
         self,
         manufacturer_id: int,

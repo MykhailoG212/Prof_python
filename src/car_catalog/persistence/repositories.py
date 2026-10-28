@@ -147,6 +147,14 @@ class CarRepository:
         self._session.flush()
         return car
 
+    def update_price(self, car_id: int, price: float) -> CarRecord | None:
+        """Update only a car's price, preserving its mileage."""
+        return self.update(car_id, price=price)
+
+    def update_mileage(self, car_id: int, mileage: int) -> CarRecord | None:
+        """Update only a car's mileage, preserving its price."""
+        return self.update(car_id, mileage=mileage)
+
     def delete(self, car_id: int) -> bool:
         car = self._session.get(CarRecord, car_id)
         if car is None:
