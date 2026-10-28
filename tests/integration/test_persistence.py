@@ -179,6 +179,26 @@ def test_bulk_price_update_commits_all_changes(database: Database) -> None:
     assert [car.price for car in cars] == [20_000, 21_000]
 
 
+def test_update_price_and_mileage_are_independent(database: Database) -> None:
+    manufacturer_id = add_manufacturer(database)
+    car_id = add_car(database, manufacturer_id)
+    service = CarCatalogService(database.session_factory)
+
+    assert service.update_price(car_id, 27_000)
+    with database.session_factory() as session:
+        car = CarRepository(session).get_by_id(car_id)
+        assert car is not None
+        assert (car.price, car.mileage) == (27_000, 45_000)
+
+    assert service.update_mileage(car_id, 50_000)
+    with database.session_factory() as session:
+        car = CarRepository(session).get_by_id(car_id)
+        assert car is not None
+        assert (car.price, car.mileage) == (27_000, 50_000)
+    assert not service.update_price(999, 1_000)
+    assert not service.update_mileage(999, 1_000)
+
+
 def test_bulk_price_update_rolls_back_on_invalid_price(database: Database) -> None:
     manufacturer_id = add_manufacturer(database)
     first_id = add_car(database, manufacturer_id, vin="VIN-TOYOTA-001")

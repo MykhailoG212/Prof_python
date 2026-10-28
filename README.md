@@ -172,7 +172,7 @@ sqlite> .quit
 
 Репозиторії приймають SQLAlchemy `Session`; керуйте їх записами через `with database.session_factory.begin() as session:` — успішний блок виконує commit, виняток автоматично викликає rollback. `search_cars_by_manufacturer()` окремо демонструє параметризований SQLite DB-API запит. Транзакційність забезпечує атомарність і довговічність після commit, обмеження та зовнішні ключі — узгодженість, а ізоляція транзакцій залежить від режиму SQLite та рівня блокування.
 
-Integration tests використовують окремі тимчасові SQLite-файли, перевіряють CRUD, зв'язок виробник–авто, пошук/агрегати, UNIQUE та CHECK constraints, DB-API запит, commit/rollback, перехід міграції зі старої схеми та downgrade/upgrade. Перевірка цієї редакції: `python -m pytest -v` — **99 passed**, покриття **86.44%**; `python -m mypy` — помилок типізації немає.
+Integration tests використовують окремі тимчасові SQLite-файли, перевіряють CRUD, окремі зміни ціни та пробігу, зв'язок виробник–авто, пошук/агрегати, UNIQUE та CHECK constraints, DB-API запит, commit/rollback, перехід міграції зі старої схеми та downgrade/upgrade. Перевірка цієї редакції: `python -m pytest -v` — **100 passed**, покриття **86.62%**; `python -m mypy` — помилок типізації немає.
 
 ## Тестування
 
