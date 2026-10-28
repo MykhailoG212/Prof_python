@@ -26,7 +26,16 @@ car-catalog-lab5-benchmark = "car_catalog.reliable.benchmark:run_benchmark"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-addopts = ["--cov=car_catalog", "--cov-branch", "--cov-report=term-missing", "--cov-report=html"]
+addopts = ["-ra", "--strict-markers", "--cov=car_catalog", "--cov-branch", "--cov-report=term-missing", "--cov-report=html"]
+markers = ["integration: exercises multiple components or real file boundaries"]
+
+[tool.coverage.run]
+branch = true
+source = ["car_catalog"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
 
 [tool.mypy]
 python_version = "3.11"

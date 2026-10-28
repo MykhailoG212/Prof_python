@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -21,11 +22,13 @@ def test_search_uses_repository_result_and_checks_interaction() -> None:
     repository.add.assert_not_called()
 
 
-def test_failed_repository_add_preserves_next_id_for_retry() -> None:
+def test_failed_repository_add_preserves_next_id_for_retry(
+    car_factory: Callable[..., Car],
+) -> None:
     repository = Mock(spec=VehicleRepository)
     repository.add.side_effect = OSError("storage unavailable")
     service = VehicleCatalogService(repository)
-    vehicle = Car("Toyota", "Camry", 2020, 25_000.0, 45_000)
+    vehicle = car_factory()
 
     with pytest.raises(OSError, match="storage unavailable"):
         service.add(vehicle)

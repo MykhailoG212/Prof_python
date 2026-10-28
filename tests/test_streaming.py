@@ -77,6 +77,7 @@ def test_recursive_yield_from_flatten() -> None:
     assert list(flatten_nested([1, [2, (3, 4)], 5])) == [1, 2, 3, 4, 5]
 
 
+@pytest.mark.integration
 def test_streaming_reader_cleaner_parser_and_validation(csv_path: Path) -> None:
     stats = ValidationStats()
     lines = clean_lines(read_lines(csv_path))
@@ -139,6 +140,7 @@ def test_pipeline_filters_first_n_and_stops_early(csv_path: Path) -> None:
         list(first_matching_cars([], -1))
 
 
+@pytest.mark.integration
 def test_iter_car_records_chains_multiple_csv_files(tmp_path: Path) -> None:
     first = tmp_path / "first.csv"
     second = tmp_path / "second.csv"

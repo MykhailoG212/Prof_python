@@ -54,3 +54,43 @@ def test_menu_runs_lab3_demo(monkeypatch: pytest.MonkeyPatch) -> None:
     run_menu([])
 
     assert called
+
+
+def test_menu_handles_invalid_year_empty_results_and_all_demos(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    answers = iter(
+        [
+            "1",
+            "2", "Tesla",
+            "3", "not-a-year",
+            "3", "2020",
+            "4", "5", "6",
+            "9", "10", "11", "12", "13",
+            "unknown",
+            "8",
+        ]
+    )
+    calls: list[str] = []
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+    monkeypatch.setattr("car_catalog.main.print_cars", lambda _cars: None)
+    monkeypatch.setattr("car_catalog.main.find_by_brand", lambda _cars, _brand: [])
+    monkeypatch.setattr("car_catalog.main.filter_by_year", lambda _cars, _year: [])
+    monkeypatch.setattr("car_catalog.main.run_lab2_demo", lambda *_args: calls.append("lab2"))
+    monkeypatch.setattr("car_catalog.main.run_benchmark", lambda: calls.append("benchmark"))
+    monkeypatch.setattr("car_catalog.main.run_lab3_demo", lambda: calls.append("lab3"))
+    monkeypatch.setattr(
+        "car_catalog.main.run_streaming_benchmark",
+        lambda: calls.append("streaming benchmark"),
+    )
+    monkeypatch.setattr("car_catalog.main.run_lab4_demo", lambda: calls.append("lab4"))
+
+    run_menu([])
+
+    output = capsys.readouterr().out
+    assert "Помилка: введіть коректне число для року." in output
+    assert "Невідома команда." in output
+    assert "Каталог порожній." in output
+    assert "Роботу завершено." in output
+    assert calls == ["lab2", "benchmark", "lab3", "streaming benchmark", "lab4"]

@@ -1,6 +1,24 @@
+from collections.abc import Callable
+
 import pytest
 
+from car_catalog.models import Car
 from car_catalog.reliable.models import ProcessingConfig
+
+
+@pytest.fixture
+def car_factory() -> Callable[..., Car]:
+    def create_car(
+        *,
+        brand: str = "Toyota",
+        model: str = "Camry",
+        year: int = 2020,
+        price: float = 25_000.0,
+        mileage: int = 45_000,
+    ) -> Car:
+        return Car(brand, model, year, price, mileage)
+
+    return create_car
 
 
 @pytest.fixture(scope="session")

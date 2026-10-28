@@ -1,5 +1,6 @@
 """Командний вхід до ЛР5."""
 
+import os
 from pathlib import Path
 
 from car_catalog.reliable.config import load_config
@@ -9,7 +10,8 @@ from car_catalog.reliable.services import import_catalog
 
 def main() -> int:
     try:
-        report = import_catalog(load_config(Path("config/lab5.yaml")))
+        config_path = Path(os.environ.get("CAR_CATALOG_CONFIG", "config/lab5.yaml"))
+        report = import_catalog(load_config(config_path))
     except ApplicationError as error:
         print(f"Помилка: {error}")
         return 1
