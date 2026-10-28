@@ -19,6 +19,7 @@ from car_catalog.persistence import (
     ManufacturerRepository,
 )
 from car_catalog.persistence.dbapi import search_cars_by_manufacturer
+from car_catalog.persistence.main import run_menu
 
 pytestmark = pytest.mark.integration
 
@@ -231,3 +232,111 @@ def test_alembic_migration_adds_unique_vin_and_backfills_existing_cars(tmp_path:
                 """,
                 (1, "Corolla", 2021, 20_000, 10_000, "LEGACY-1"),
             )
+
+
+def test_persistent_cli_creates_and_reads_catalog_across_sessions(
+    database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    answers = iter(["7", "Toyota", "Camry", "2020", "25000", "45000", "VIN-CLI-001", "0"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    run_menu(database)
+
+    with database.session_factory() as session:
+        cars = CarRepository(session).list_all()
+    assert len(cars) == 1
+    assert (cars[0].manufacturer.name, cars[0].model, cars[0].vin) == (
+        "Toyota",
+        "Camry",
+        "VIN-CLI-001",
+    )
+
+    answers = iter(["1", "0"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    run_menu(database)
+    assert "Toyota Camry" in capsys.readouterr().out
+
+
+def test_persistent_cli_mass_updates_prices(database: Database, monkeypatch: pytest.MonkeyPatch) -> None:
+    manufacturer_id = add_manufacturer(database)
+    add_car(database, manufacturer_id)
+    answers = iter(["10", "Toyota", "10", "0"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+
+    run_menu(database)
+
+    with database.session_factory() as session:
+        car = CarRepository(session).get_by_vin("VIN-TOYOTA-001")
+    assert car is not None
+    assert car.price == 27_500
+
+
+def test_persistent_cli_supports_catalog_queries_update_and_delete(
+    database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    toyota_id = add_manufacturer(database)
+    honda_id = add_manufacturer(database, "Honda")
+    first_id = add_car(database, toyota_id, vin="VIN-TOYOTA-001")
+    second_id = add_car(database, toyota_id, model="Corolla", year=2019, price=18_000, vin="VIN-TOYOTA-002")
+    add_car(database, honda_id, model="Civic", price=22_000, mileage=30_000, vin="VIN-HONDA-001")
+    answers = iter(
+        [
+            "1",
+            "2", "Toyota",
+            "3", "2020",
+            "4",
+            "5",
+            "6",
+            "8", str(first_id), "26000", "46000",
+            "9", str(second_id),
+            "10", "Toyota", "5",
+            "0",
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+
+    run_menu(database)
+
+    output = capsys.readouterr().out
+    assert "Toyota Camry" in output
+    assert "Honda Civic" in output
+    assert "Середня ціна" in output
+    with database.session_factory() as session:
+        remaining = CarRepository(session).list_all()
+    assert [(car.model, car.price, car.mileage) for car in remaining] == [
+        ("Camry", 27_300, 46_000),
+        ("Civic", 22_000, 30_000),
+    ]
+
+
+def test_persistent_cli_retries_invalid_integer_and_rejects_bad_price_change(
+    database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manufacturer_id = add_manufacturer(database)
+    add_car(database, manufacturer_id)
+    answers = iter(
+        [
+            "3", "not-a-year", "1800", "2020",
+            "10", "Toyota", "-100",
+            "10", "Toyota", "1e308",
+            "0",
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+
+    run_menu(database)
+
+    output = capsys.readouterr().out
+    assert "введіть ціле число" in output
+    assert "Рік має бути не раніше 1886" in output
+    assert "Відсоток має бути скінченним і більшим за -100" in output
+    assert "Updated price for car" in output
+    with database.session_factory() as session:
+        car = CarRepository(session).get_by_vin("VIN-TOYOTA-001")
+    assert car is not None
+    assert car.price == 25_000

@@ -22,6 +22,7 @@ car-catalog-lab3 = "car_catalog.streaming.demo:run_demo"
 car-catalog-lab3-benchmark = "car_catalog.streaming.benchmark:run_benchmark"
 car-catalog-lab5 = "car_catalog.reliable.main:main"
 car-catalog-lab5-benchmark = "car_catalog.reliable.benchmark:run_benchmark"
+car-catalog-lab7 = "car_catalog.persistence.main:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
