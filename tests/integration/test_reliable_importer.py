@@ -13,6 +13,8 @@ from car_catalog.reliable.importers import parse_vehicle
 from car_catalog.reliable.models import ProcessingConfig
 from car_catalog.reliable.services import import_catalog
 
+pytestmark = pytest.mark.integration
+
 
 def write_config(path: Path, *, policy: str = "tolerant") -> Path:
     input_path = path.parent / "vehicles.csv"
@@ -42,7 +44,6 @@ def write_csv(path: Path) -> None:
     )
 
 
-@pytest.mark.integration
 def test_tolerant_import_exports_only_valid_records_and_logs_error(tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     input_path = write_config(config_path)
@@ -58,7 +59,6 @@ def test_tolerant_import_exports_only_valid_records_and_logs_error(tmp_path: Pat
     assert "numeric field has invalid value" in config.logging.path.read_text(encoding="utf-8")
 
 
-@pytest.mark.integration
 def test_strict_import_stops_and_does_not_create_output(tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     input_path = write_config(config_path, policy="strict")
@@ -96,7 +96,6 @@ def test_atomic_writer_preserves_existing_file_after_failure(tmp_path: Path) -> 
     assert list(tmp_path.glob("*.tmp")) == []
 
 
-@pytest.mark.integration
 def test_tolerant_import_counts_rows_with_extra_fields(tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     input_path = write_config(config_path)
@@ -195,7 +194,6 @@ def test_invalid_price_range_is_rejected(
         load_config(config_path)
 
 
-@pytest.mark.integration
 def test_csv_header_with_utf8_bom_is_supported(tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     input_path = write_config(config_path)

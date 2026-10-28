@@ -109,19 +109,20 @@ python -m car_catalog.reliable.benchmark
 python -m pytest -v
 ```
 
-Команда запускає весь suite, показує statement і branch coverage у терміналі та створює HTML-звіт у `htmlcov/index.html`; повний suite завершується помилкою, якщо coverage нижче 80%. Для запуску після чистого встановлення встановіть тестові залежності командою `python -m pip install -e ".[test]"`. Інтеграційні перевірки позначено `integration`: їх можна запускати окремо через `python -m pytest -m integration --cov-fail-under=0`, а unit tests — через `python -m pytest -m "not integration" --cov-fail-under=0`.
+Команда запускає `tests/unit/` і `tests/integration/`, показує statement та branch coverage у терміналі й створює HTML-звіт `htmlcov/index.html`. Повний suite завершується помилкою, якщо combined coverage нижче 80%. Для чистого встановлення: `python -m pip install -e ".[test]"`. Integration suite має маркер `integration` і містить сценарії з реальною файловою системою в `tmp_path`.
 
-Тести перевіряють unit-поведінку моделей, сервісів і валідаторів, а також інтеграцію YAML-конфігурації, CSV-імпорту й атомарного JSON-експорту на ізольованій файловій системі (`tmp_path`). Fixtures не мають спільного змінюваного стану; спільна fixture конфігурації має session scope і повертає незмінний об'єкт. Mock-тести перевіряють результат, виклики залежностей та їхні помилки. Для асинхронних клієнтів `VehicleCatalogService.add_async()` виконує блокувальний запис у worker thread, а `AsyncMock` перевіряє awaited-взаємодію та помилковий шлях.
+Unit suite має окремі модулі за компонентами: application/repository interactions, CLI, OOP models, analytics/processors, reliable configuration/validation та streaming primitives. Integration suite ізольовано перевіряє надійний CSV → JSON import/export і файловий streaming pipeline.
 
-Каталог не має асинхронних API чи залежностей, тому `AsyncMock` тут не додається штучно: він не підміняв би жодну реальну взаємодію проєкту. Тест CLI використовує `monkeypatch` для змінної середовища `CAR_CATALOG_CONFIG`, а тести меню — для заміни `input` і викликів функцій.
+Fixtures не мають спільного змінюваного стану; конфігураційна session fixture — незмінний об'єкт. Тестова factory створює нові моделі. `monkeypatch` перевіряє CLI environment override, input і заміну функцій; Mock/AsyncMock перевіряють результати, взаємодії й failure paths. `VehicleCatalogService.add_async()` offload-ить блокувальний запис у worker thread.
 
-Тести ізольовані, детерміновані та не звертаються до мережі. Файлові інтеграційні сценарії використовують справжні тимчасові CSV/YAML/JSON-файли через `tmp_path`; окремі `unit`, `integration` та benchmark/demo шляхи позначені/проаналізовані в тестах і звіті. Тестова fixture-фабрика створює незалежні автомобілі, а session fixture містить незмінну конфігурацію.
+Файлові integration tests використовують тимчасові CSV/YAML/JSON через `tmp_path`; мережеві залежності відсутні.
 
 Для запуску одного тесту або частини suite з coverage-порогом, вимкненим для неповного набору:
 
 ```bash
-python -m pytest tests/test_services.py::test_calculate_average_price --cov-fail-under=0
+python -m pytest tests/unit/test_services.py::test_calculate_average_price --cov-fail-under=0
 python -m pytest -m integration --cov-fail-under=0
+python -m pytest -m "not integration" --cov-fail-under=0
 ```
 
 Для формування звіту ЛР06 разом із результатами актуального запуску tests, branch/statement coverage, HTML coverage fragment і 80 відповідями на контрольні запитання:

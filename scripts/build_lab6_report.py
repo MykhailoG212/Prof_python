@@ -413,8 +413,8 @@ def main() -> None:
         heading(doc, "2. Короткий опис проєкту")
         paragraph(doc, "Car Catalog зберігає й аналізує каталог автомобілів. У роботі перевірено предметні моделі, application service та repository, потокову обробку CSV, валідацію, YAML-конфігурацію, tolerant/strict імпорт, журналювання й атомарний JSON-експорт. Зовнішня мережа не потрібна: файлові integration tests використовують тимчасові файли, а залежність repository підмінюється Mock.")
         heading(doc, "3. Структура production code і тестів")
-        code(doc, "src/car_catalog/\n├── models.py, services.py, repositories.py\n├── application.py, criteria.py, protocols.py\n├── reliable/\n│   ├── config.py, importers.py, exporters.py\n│   ├── services.py, exceptions.py, main.py\n└── streaming/\n    ├── readers.py, parsers.py, validation.py\n    ├── pipeline.py, filters.py, analytics.py\n\ntests/\n├── conftest.py\n├── test_services.py, test_main.py, test_oop_model.py\n├── test_processors_analytics.py, test_streaming.py\n├── test_reliable_importer.py\n├── test_reliable_validation.py, test_reliable_main.py\n└── test_application_interactions.py")
-        paragraph(doc, "Тести згруповані за production-компонентами в окремі файли; integration-сценарії мають pytest marker integration. Shared fixtures розміщені у conftest.py та доступні за автоматичним пошуком pytest.")
+        code(doc, "src/car_catalog/\n├── models.py, services.py, repositories.py\n├── application.py, criteria.py, protocols.py\n├── reliable/\n│   ├── config.py, importers.py, exporters.py\n│   ├── services.py, exceptions.py, main.py\n└── streaming/\n    ├── readers.py, parsers.py, validation.py\n    ├── pipeline.py, filters.py, analytics.py\n\ntests/\n├── conftest.py\n├── unit/\n│   ├── test_application_interactions.py\n│   ├── test_main.py, test_oop_model.py\n│   ├── test_processors_analytics.py\n│   ├── test_reliable_main.py, test_reliable_validation.py\n│   ├── test_services.py\n│   └── test_streaming_components.py\n└── integration/\n    ├── test_reliable_importer.py\n    └── test_streaming_pipeline.py")
+        paragraph(doc, "Тестовий набір фізично розділено на tests/unit і tests/integration; testpaths у pyproject.toml включає обидва каталоги. Unit-модулі відповідають application components, integration-модулі мають спільний pytest marker integration і тестують повні файлові шляхи. Shared fixtures залишаються у tests/conftest.py.")
 
         heading(doc, "4. Матриця тестування")
         table(doc, ["Категорія", "Перевірка / приклад", "Результат"], [
@@ -426,7 +426,7 @@ def main() -> None:
             ["Dependency failure", "Repository.add піднімає OSError", "Помилка передається; ID доступний для retry"],
             ["File/config", "tmp_path: YAML, CSV, JSON; атомарне перейменування", "Ізольовані файли й збереження попереднього output"],
             ["Interaction", "Mock/spec, return_value, side_effect", "Перевірені аргументи, кількість і відсутність викликів"],
-            ["Integration", "CSV → parser/validator → service → JSON", "6 маркованих integration cases проходять"],
+            ["Integration", "CSV → parser/validator → service → JSON", f"{integration_match.group(1)} маркованих integration cases проходять"],
             ["Repeated/isolated", "Повторний service.add після помилки", "Тести незалежні, ID не пропускається"],
         ], [3.1, 8.1, 5.3])
 
@@ -461,7 +461,7 @@ def main() -> None:
 
         heading(doc, "6. Запуск тестів і результати")
         paragraph(doc, f"Одна команда повного запуску: python -m pytest. Фактичний результат запуску під час формування звіту: {test_result}; integration: {integration_match.group(0)}; unit та решта тестів: {unit_match.group(0)}. Середовище: Python {sys.version.split()[0]}, pytest із pytest-cov. Поріг повного suite у pyproject.toml — 80%.")
-        paragraph(doc, "Окремі команди: python -m pytest tests/test_services.py --cov-fail-under=0; python -m pytest tests/test_services.py::test_calculate_average_price --cov-fail-under=0; python -m pytest -m integration --cov-fail-under=0. Для subset-запуску поріг вимкнено, бо частковий набір не має представляти coverage всього пакета.")
+        paragraph(doc, "Окремі команди: python -m pytest tests/unit/test_services.py --cov-fail-under=0; python -m pytest tests/unit/test_services.py::test_calculate_average_price --cov-fail-under=0; python -m pytest -m integration --cov-fail-under=0. Для subset-запуску поріг вимкнено, бо частковий набір не має представляти coverage всього пакета.")
         doc.add_picture(str(test_image), width=Cm(16))
         paragraph(doc, "Рисунок 1 — Фактичний результат повного запуску pytest і згенерований coverage.", size=10, align=WD_ALIGN_PARAGRAPH.CENTER, indent=False)
         paragraph(doc, f"Mypy: {mypy_output}.")
