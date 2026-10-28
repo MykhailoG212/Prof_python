@@ -122,6 +122,37 @@ def test_car_year_filter_aggregates_and_manufacturer_search(database: Database) 
         assert len(repository.list_all()) == 3
 
 
+def test_brand_statistics_use_join_group_by_and_all_price_aggregates(database: Database) -> None:
+    toyota_id = add_manufacturer(database)
+    honda_id = add_manufacturer(database, "Honda")
+    add_car(database, toyota_id, vin="VIN-TOYOTA-001")
+    add_car(database, toyota_id, model="Corolla", year=2019, price=18_000, vin="VIN-TOYOTA-002")
+    add_car(database, honda_id, model="Civic", price=22_000, mileage=30_000, vin="VIN-HONDA-001")
+
+    statistics = CarCatalogService(database.session_factory).get_brand_statistics()
+
+    assert statistics == [
+        {
+            "brand": "Toyota",
+            "count": 2,
+            "avg_price": 21_500.0,
+            "max_price": 25_000.0,
+            "total_value": 43_000.0,
+        },
+        {
+            "brand": "Honda",
+            "count": 1,
+            "avg_price": 22_000.0,
+            "max_price": 22_000.0,
+            "total_value": 22_000.0,
+        },
+    ]
+
+
+def test_brand_statistics_are_empty_for_empty_catalog(database: Database) -> None:
+    assert CarCatalogService(database.session_factory).get_brand_statistics() == []
+
+
 def test_parameterized_dbapi_search(database: Database) -> None:
     manufacturer_id = add_manufacturer(database)
     add_car(database, manufacturer_id)
@@ -162,7 +193,7 @@ def test_bulk_price_update_rolls_back_on_invalid_price(database: Database) -> No
     assert [car.price for car in cars] == [25_000, 25_000]
 
 
-def test_foreign_key_vin_uniqueness_and_repository_validation(database: Database) -> None:
+def test_unique_vin_database_constraint(database: Database) -> None:
     manufacturer_id = add_manufacturer(database)
     add_car(database, manufacturer_id)
 
@@ -177,6 +208,27 @@ def test_foreign_key_vin_uniqueness_and_repository_validation(database: Database
                 vin="VIN-TOYOTA-001",
             )
 
+
+def test_check_constraint_rejects_negative_price(database: Database) -> None:
+    manufacturer_id = add_manufacturer(database)
+
+    with pytest.raises(IntegrityError):
+        with database.session_factory.begin() as session:
+            session.add(
+                CarRecord(
+                    manufacturer_id=manufacturer_id,
+                    model="Invalid",
+                    year=2020,
+                    price=-1,
+                    mileage=0,
+                    vin="VIN-INVALID-001",
+                )
+            )
+            session.flush()
+
+
+def test_repository_validates_foreign_key_and_car_data(database: Database) -> None:
+    manufacturer_id = add_manufacturer(database)
     with database.session_factory.begin() as session:
         repository = CarRepository(session)
         with pytest.raises(LookupError, match="does not exist"):
@@ -232,6 +284,39 @@ def test_alembic_migration_adds_unique_vin_and_backfills_existing_cars(tmp_path:
                 """,
                 (1, "Corolla", 2021, 20_000, 10_000, "LEGACY-1"),
             )
+
+
+def test_alembic_supports_downgrade_and_upgrade_to_head(tmp_path: Path) -> None:
+    database_path = tmp_path / "downgrade.db"
+    url = URL.create("sqlite", database=str(database_path))
+    alembic_config = Config("alembic.ini")
+    alembic_config.set_main_option(
+        "sqlalchemy.url",
+        url.render_as_string(hide_password=False).replace("%", "%%"),
+    )
+
+    command.upgrade(alembic_config, "head")
+    command.downgrade(alembic_config, "-1")
+    with closing(sqlite3.connect(database_path)) as connection:
+        column_names = {row[1] for row in connection.execute("PRAGMA table_info(cars)")}
+        assert "vin" not in column_names
+
+    command.upgrade(alembic_config, "head")
+    with closing(sqlite3.connect(database_path)) as connection:
+        column_names = {row[1] for row in connection.execute("PRAGMA table_info(cars)")}
+        assert "vin" in column_names
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+            "0002_unique_vin",
+        )
+
+    command.downgrade(alembic_config, "base")
+    with closing(sqlite3.connect(database_path)) as connection:
+        table_names = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert "cars" not in table_names
+        assert "manufacturers" not in table_names
 
 
 def test_persistent_cli_creates_and_reads_catalog_across_sessions(
@@ -340,3 +425,18 @@ def test_persistent_cli_retries_invalid_integer_and_rejects_bad_price_change(
         car = CarRepository(session).get_by_vin("VIN-TOYOTA-001")
     assert car is not None
     assert car.price == 25_000
+
+
+def test_persistent_cli_displays_grouped_brand_statistics(
+    database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manufacturer_id = add_manufacturer(database)
+    add_car(database, manufacturer_id)
+    answers = iter(["11", "0"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    run_menu(database)
+
+    output = capsys.readouterr().out
+    assert "Toyota | 1 | $25,000.00 | $25,000.00 | $25,000.00" in output

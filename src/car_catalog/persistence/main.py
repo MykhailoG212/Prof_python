@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from car_catalog.persistence.database import Database
 from car_catalog.persistence.models import CarRecord
 from car_catalog.persistence.repositories import CarRepository, ManufacturerRepository
-from car_catalog.persistence.services import CarCatalogService
+from car_catalog.persistence.services import BrandStatistics, CarCatalogService
 
 
 def _read_non_empty(prompt: str) -> str:
@@ -53,6 +53,18 @@ def _print_cars(cars: list[CarRecord]) -> None:
         print(
             f"{car.id} | {car.manufacturer.name} {car.model} | {car.year} | "
             f"${car.price:,.2f} | {car.mileage:,} | {car.vin}"
+        )
+
+
+def _print_brand_statistics(statistics: list[BrandStatistics]) -> None:
+    if not statistics:
+        print("\nСтатистика відсутня: каталог порожній.")
+        return
+    print("\nМарка | Автомобілі | Середня ціна | Максимальна ціна | Загальна вартість")
+    for row in statistics:
+        print(
+            f"{row['brand']} | {row['count']} | ${row['avg_price']:,.2f} | "
+            f"${row['max_price']:,.2f} | ${row['total_value']:,.2f}"
         )
 
 
@@ -150,6 +162,7 @@ def run_menu(database: Database) -> None:
             "8. Змінити ціну та пробіг\n"
             "9. Видалити автомобіль\n"
             "10. Масово змінити ціни марки\n"
+            "11. Статистика за виробниками (JOIN/GROUP BY)\n"
             "0. Вийти"
         )
         choice = input("Оберіть дію: ").strip()
@@ -187,6 +200,9 @@ def run_menu(database: Database) -> None:
                 _delete_car(database)
             elif choice == "10":
                 _update_manufacturer_prices(database)
+            elif choice == "11":
+                statistics = CarCatalogService(database.session_factory).get_brand_statistics()
+                _print_brand_statistics(statistics)
             else:
                 print("Невідома команда. Спробуйте ще раз.")
         except (IntegrityError, LookupError, ValueError) as error:
