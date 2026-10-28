@@ -114,11 +114,13 @@ def test_car_year_filter_aggregates_and_manufacturer_search(database: Database) 
         repository = CarRepository(session)
         assert [car.id for car in repository.filter_by_year(2020)] == [first_id, 3]
         assert [car.model for car in repository.find_by_manufacturer("toyota")] == ["Camry", "Corolla"]
-        assert repository.most_expensive() is not None
-        assert repository.most_expensive().model == "Camry"
+        most_expensive = repository.most_expensive()
+        assert most_expensive is not None
+        assert most_expensive.model == "Camry"
         assert repository.average_price() == pytest.approx((25_000 + 18_000 + 22_000) / 3)
-        assert repository.lowest_mileage() is not None
-        assert repository.lowest_mileage().model == "Civic"
+        lowest_mileage = repository.lowest_mileage()
+        assert lowest_mileage is not None
+        assert lowest_mileage.model == "Civic"
         assert len(repository.list_all()) == 3
 
 
@@ -157,7 +159,9 @@ def test_parameterized_dbapi_search(database: Database) -> None:
     manufacturer_id = add_manufacturer(database)
     add_car(database, manufacturer_id)
 
-    with closing(sqlite3.connect(database.engine.url.database)) as connection:
+    database_path = database.engine.url.database
+    assert database_path is not None
+    with closing(sqlite3.connect(database_path)) as connection:
         found = search_cars_by_manufacturer(connection, "toyota")
         injection_attempt = search_cars_by_manufacturer(connection, "' OR 1=1 --")
 
@@ -179,7 +183,7 @@ def test_bulk_price_update_commits_all_changes(database: Database) -> None:
     assert [car.price for car in cars] == [20_000, 21_000]
 
 
-def test_update_price_and_mileage_are_independent(database: Database) -> None:
+def test_update_price_and_update_mileage(database: Database) -> None:
     manufacturer_id = add_manufacturer(database)
     car_id = add_car(database, manufacturer_id)
     service = CarCatalogService(database.session_factory)
@@ -205,7 +209,7 @@ def test_bulk_price_update_rolls_back_on_invalid_price(database: Database) -> No
     second_id = add_car(database, manufacturer_id, model="Corolla", vin="VIN-TOYOTA-002")
     service = CarCatalogService(database.session_factory)
 
-    with pytest.raises(ValueError, match="finite and non-negative"):
+    with pytest.raises(ValueError, match="finite"):
         service.update_prices_for_manufacturer(manufacturer_id, {first_id: 20_000, second_id: float("nan")})
 
     with database.session_factory() as session:
@@ -213,7 +217,7 @@ def test_bulk_price_update_rolls_back_on_invalid_price(database: Database) -> No
     assert [car.price for car in cars] == [25_000, 25_000]
 
 
-def test_unique_vin_database_constraint(database: Database) -> None:
+def test_unique_vin_constraint(database: Database) -> None:
     manufacturer_id = add_manufacturer(database)
     add_car(database, manufacturer_id)
 
@@ -229,7 +233,7 @@ def test_unique_vin_database_constraint(database: Database) -> None:
             )
 
 
-def test_check_constraint_rejects_negative_price(database: Database) -> None:
+def test_check_constraint_price(database: Database) -> None:
     manufacturer_id = add_manufacturer(database)
 
     with pytest.raises(IntegrityError):
@@ -242,6 +246,69 @@ def test_check_constraint_rejects_negative_price(database: Database) -> None:
                     price=-1,
                     mileage=0,
                     vin="VIN-INVALID-001",
+                )
+            )
+            session.flush()
+
+
+def test_check_constraint_mileage(database: Database) -> None:
+    manufacturer_id = add_manufacturer(database)
+
+    with pytest.raises(IntegrityError):
+        with database.session_factory.begin() as session:
+            session.add(
+                CarRecord(
+                    manufacturer_id=manufacturer_id,
+                    model="Invalid",
+                    year=2020,
+                    price=0,
+                    mileage=-1,
+                    vin="VIN-INVALID-002",
+                )
+            )
+            session.flush()
+
+
+def test_update_price_and_mileage_defer_negative_checks_to_database(database: Database) -> None:
+    manufacturer_id = add_manufacturer(database)
+    car_id = add_car(database, manufacturer_id)
+
+    with pytest.raises(IntegrityError):
+        with database.session_factory.begin() as session:
+            CarRepository(session).update_price(car_id, -1)
+
+    with pytest.raises(IntegrityError):
+        with database.session_factory.begin() as session:
+            CarRepository(session).update_mileage(car_id, -1)
+
+    with database.session_factory.begin() as session:
+        repository = CarRepository(session)
+        assert repository.update_price(999, -1) is None
+        assert repository.update_mileage(999, -1) is None
+
+
+def test_cascade_delete_manufacturer(database: Database) -> None:
+    manufacturer_id = add_manufacturer(database)
+    car_id = add_car(database, manufacturer_id)
+
+    with database.session_factory.begin() as session:
+        assert ManufacturerRepository(session).delete(manufacturer_id)
+
+    with database.session_factory() as session:
+        assert CarRepository(session).get_by_id(car_id) is None
+
+
+def test_sqlite_enforces_car_manufacturer_foreign_key(database: Database) -> None:
+    with pytest.raises(IntegrityError):
+        with database.session_factory.begin() as session:
+            session.add(
+                CarRecord(
+                    manufacturer_id=999,
+                    model="Orphan",
+                    year=2020,
+                    price=0,
+                    mileage=0,
+                    vin="VIN-ORPHAN-001",
                 )
             )
             session.flush()
@@ -337,6 +404,17 @@ def test_alembic_supports_downgrade_and_upgrade_to_head(tmp_path: Path) -> None:
         }
         assert "cars" not in table_names
         assert "manufacturers" not in table_names
+
+    command.upgrade(alembic_config, "head")
+    with closing(sqlite3.connect(database_path)) as connection:
+        table_names = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert {"cars", "manufacturers", "alembic_version"} <= table_names
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
+            "0002_unique_vin",
+        )
 
 
 def test_persistent_cli_creates_and_reads_catalog_across_sessions(
