@@ -1,7 +1,7 @@
 input:
-  path: data/lab5_vehicles.csv
+  path: ../data/lab5_vehicles.csv
 output:
-  path: output/vehicles.json
+  path: ../output/vehicles.json
 processing:
   minimum_year: 1886
   maximum_year: 2026
@@ -10,4 +10,4 @@ processing:
   invalid_record_policy: tolerant
 logging:
   level: INFO
-  path: logs/lab5.log
+  path: ../logs/lab5.log

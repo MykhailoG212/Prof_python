@@ -6,15 +6,16 @@ from contextlib import contextmanager
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Iterator, TextIO, cast
+from typing import Generator, TextIO, cast
 
 from car_catalog.reliable.exceptions import DataExportError
 
 
 @contextmanager
-def atomic_text_writer(path: Path) -> Iterator[TextIO]:
+def atomic_text_writer(path: Path) -> Generator[TextIO, None, None]:
     """Створює тимчасовий файл і замінює ціль лише після успішного запису."""
     temporary: Path | None = None
+    active_error: Exception | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent, suffix=".tmp") as file:
@@ -22,13 +23,20 @@ def atomic_text_writer(path: Path) -> Iterator[TextIO]:
             yield cast(TextIO, file)
         os.replace(temporary, path)
     except OSError as error:
+        active_error = error
         raise DataExportError(f"Cannot export JSON to: {path}") from error
+    except Exception as error:
+        active_error = error
+        raise
     finally:
-        if temporary is not None and temporary.exists():
+        if temporary is not None:
             try:
-                temporary.unlink()
-            except OSError:
-                pass
+                temporary.unlink(missing_ok=True)
+            except OSError as error:
+                message = f"Cannot remove temporary export file {temporary}: {error}"
+                if active_error is None:
+                    raise DataExportError(message) from error
+                active_error.add_note(message)
 
 
 def export_json(

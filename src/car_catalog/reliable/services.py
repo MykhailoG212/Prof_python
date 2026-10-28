@@ -1,6 +1,7 @@
 """Оркестрація strict/tolerant імпорту, статистики, логування та експорту."""
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,8 +21,14 @@ def configure_logging(path: Path, level: str) -> logging.Logger:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         logger = logging.getLogger("car_catalog.reliable")
-        logger.handlers.clear()
-        logger.setLevel(getattr(logging, level, logging.INFO))
+        for existing_handler in logger.handlers[:]:
+            logger.removeHandler(existing_handler)
+            existing_handler.close()
+        numeric_level = logging.getLevelNamesMapping().get(level)
+        if numeric_level is None:
+            raise ConfigurationError(f"Unsupported logging level: {level}")
+        logger.setLevel(numeric_level)
+        logger.propagate = False
         handler = logging.FileHandler(path, encoding="utf-8")
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         logger.addHandler(handler)
@@ -35,7 +42,7 @@ def import_catalog(config: AppConfig) -> ImportReport:
     logger = configure_logging(config.logging.path, config.logging.level)
     report = ImportReport()
 
-    def valid_vehicles():
+    def valid_vehicles() -> Iterator[dict[str, int | float | str]]:
         for line_number, result in read_vehicles(config.input_path, config.processing):
             if isinstance(result, RecordValidationError):
                 report.invalid_count += 1
