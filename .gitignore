@@ -29,3 +29,6 @@ htmlcov/
 # Lab 5 generated files
 output/
 logs/
+
+# Local SQLite databases
+*.db

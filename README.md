@@ -103,6 +103,23 @@ python -m car_catalog.reliable.benchmark
 
 Шляхи конфігурації відносні до `config/lab5.yaml`. Вихідний JSON записується атомарно: файл замінюється лише після повного успішного запису. Логи та результат виконання є згенерованими файлами у `logs/` і `output/`. Benchmark генерує тимчасовий CSV на 100 000 записів, порівнює eager зі streaming за часом і піковим споживанням пам'яті та перевіряє однаковість результатів за SHA-256.
 
+## Лабораторна робота №7: SQLite persistence layer
+
+Пакет `car_catalog.persistence` додає SQLite persistence layer до каталогу: SQLAlchemy-моделі `ManufacturerRecord` і `CarRecord` мають зв'язок one-to-many, первинні та зовнішній ключі, обмеження значень і унікальний VIN. `ManufacturerRepository` та `CarRepository` реалізують CRUD; репозиторій авто також підтримує пошук виробника, фільтр року, найдорожче авто, середню ціну та мінімальний пробіг. `CarCatalogService.update_prices_for_manufacturer()` змінює кілька цін в одній транзакції: помилка валідації чи належності авто відкочує всі зміни.
+
+Щоб застосувати Alembic-міграції до SQLite-файлу за замовчуванням:
+
+```bash
+python -m pip install -e ".[test,dev]"
+python -m alembic upgrade head
+```
+
+Для окремої бази задайте URL в `CAR_CATALOG_DATABASE_URL` (наприклад, `sqlite:///data/catalog.db`) перед міграцією та запуском застосунку. Перша міграція створює таблиці `manufacturers` і `cars`; наступна додає обов'язковий унікальний VIN та заповнює його для вже наявних записів. `Database.create_schema()` зручний для нової БД і тестів; для оновлення існуючої БД використовуйте Alembic.
+
+Репозиторії приймають SQLAlchemy `Session`; керуйте їх записами через `with database.session_factory.begin() as session:` — успішний блок виконує commit, виняток автоматично викликає rollback. `search_cars_by_manufacturer()` окремо демонструє параметризований SQLite DB-API запит. Транзакційність забезпечує атомарність і довговічність після commit, обмеження та зовнішні ключі — узгодженість, а ізоляція транзакцій залежить від режиму SQLite та рівня блокування.
+
+Integration tests використовують окремі тимчасові SQLite-файли, перевіряють CRUD, зв'язок виробник–авто, пошук/агрегати, унікальність VIN, DB-API запит, commit/rollback і перехід міграції зі старої схеми.
+
 ## Тестування
 
 ```bash
